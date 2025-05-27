@@ -5,6 +5,7 @@ from models import UserModel, DeviceModel, NotificationModel
 from typing import List
 from dummy_data import dummy_notifications
 from datetime import datetime
+from NotificationClassifier import classify_notification
 
 app = FastAPI()
 
@@ -28,7 +29,14 @@ async def register_device(device: DeviceModel):
 
 @app.post("/notifications/")
 async def create_notification(notification: NotificationModel):
+    print("In here")
     result = await db.notifications.insert_one(notification.dict())
+    notification = await db.notifications.find_one(result.inserted_id)
+    print(notification)
+    #Classify and Summarize
+    classificationResult = classify_notification(notification["title"], notification["content"], notification["source"])
+    
+    #
     return {"id": str(result.inserted_id)}
 
 @app.get("/notifications/")

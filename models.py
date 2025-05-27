@@ -3,7 +3,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, time
-from bson import ObjectId
 from enum import Enum
 
 class Priority (str, Enum):
@@ -22,7 +21,7 @@ class Category (str, Enum):
     entertainment= "Entertainment"
 
 class NotificationModel(BaseModel):
-    user_id: ObjectId
+    user_id: str
     source: str
     title: str
     content: str
@@ -34,8 +33,7 @@ class NotificationModel(BaseModel):
     scheduled_for_end: Optional[datetime] = None
     frequency: Optional[int] = None
     delivered_at: list[Optional[datetime]] = []
-    class Config:
-        arbitrary_types_allowed = True
+    
 
 
 class UserModel(BaseModel):
@@ -53,25 +51,34 @@ class Platform (str, Enum):
     android= "Android"
 
 class DeviceModel(BaseModel):
-    user_id: ObjectId
+    user_id: str
     endpoint: Optional[str] = None
     platform: Optional[Platform] = None
     key: Optional[str] = None
     created_at: Optional[datetime] = None
-    class Config:
-        arbitrary_types_allowed = True
+    
 
 class Action(str, Enum):
     clicked= "Clicked"
     dismissed= "Dismissed"
 
 
-class UserBehaviourModel(BaseModel):
-    user_id: ObjectId
-    notification_id: ObjectId
-    device_id: ObjectId
+class UserFeedback(BaseModel):
+    user_id: str
+    notification_id: str
+    device_id: str
     action: Action
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+
+
+class UserBehaviour(BaseModel):
+    user_id: str
+    notification_category: Category
+    notification_priority: Priority
+    average_reaction_time: time
+    clickedCount: int
+    dismissedCount: int
     class Config:
         arbitrary_types_allowed = True
 

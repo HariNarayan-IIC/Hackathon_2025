@@ -2,6 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from google import genai
+import re
 
 # Load API Key from .env
 load_dotenv()
@@ -40,29 +41,39 @@ Source: {source}
         contents=prompt
     )
 
+
     try:
-        return json.loads(response.text)
+        text = response.text
+        # Step 1: Strip Markdown-style code block wrapper (```json ... ```)
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if not match:
+            raise ValueError("No valid JSON code block found")
+
+        json_str = match.group(1)
+
+        # Step 2: Parse cleaned JSON string
+        return json.loads(json_str)
     except Exception as e:
         print("⚠️ Could not parse JSON. Raw Gemini response:")
         print(response.text)
         return None
 
 # Main Loop
-if __name__ == "__main__":
-    print("Classifier (type 'q' to quit)\n")
+# if __name__ == "__main__":
+#     print("Classifier (type 'q' to quit)\n")
 
-    while True:
-        source = input("Enter source (or 'q' to quit): ").strip()
-        if source.lower() == 'q':
-            break
+#     while True:
+#         source = input("Enter source (or 'q' to quit): ").strip()
+#         if source.lower() == 'q':
+#             break
 
-        title = input("Title: ").strip()
-        content = input("Content: ").strip()
+#         title = input("Title: ").strip()
+#         content = input("Content: ").strip()
 
-        print("\nClassifying...")
-        result = classify_notification(title, content, source)
+#         print("\nClassifying...")
+#         result = classify_notification(title, content, source)
 
-        if result:
-            print("\nResult:")
-            print(json.dumps(result, indent=2))
-        print("\n" + "-"*40 + "\n")
+#         if result:
+#             print("\nResult:")
+#             print(json.dumps(result, indent=2))
+#         print("\n" + "-"*40 + "\n")
