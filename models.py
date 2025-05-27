@@ -9,6 +9,7 @@ class Priority (str, Enum):
     high= "High"
     medium= "Medium"
     low= "Low"
+    urgent= "Urgent"
 
 class Category (str, Enum):
     work= "Work"
@@ -19,6 +20,7 @@ class Category (str, Enum):
     health= "Health"
     news= "News"
     entertainment= "Entertainment"
+    hazard= "Hazard"
 
 class NotificationModel(BaseModel):
     user_id: str

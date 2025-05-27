@@ -1,5 +1,6 @@
 import os
-import time
+import re
+import json
 from dotenv import load_dotenv
 from google import genai
 # from google.genai.errors import ServerError
@@ -15,11 +16,12 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 # Enhanced Prompt Generator
-def generate_prompt(category, priority, avg_reaction_time, click_count, dismiss_count):
+def generate_prompt(category, priority, avg_reaction_time, click_count, dismiss_count, creation_datetime):
     prompt = f"""
 You are an intelligent assistant that recommends optimized scheduling for mobile notifications to maximize user engagement and minimize fatigue.
 
-## Notification Details:
+## Notification Metadata:
+- Created At: {creation_datetime}
 - Category: {category}
 - Priority: {priority}
 - Average Reaction Time: {avg_reaction_time if avg_reaction_time is not None else "not available"} seconds
@@ -33,35 +35,45 @@ You are an intelligent assistant that recommends optimized scheduling for mobile
 - If no user data is available, be conservative in frequency (1-2 notifications).
 
 ## Category Behavior Hints:
-- **Work / Finance / System**: Send early (morning/daytime). High priority means high urgency.
-- **Social / News / Entertainment**: Send in the evening or break times. Low/medium priority = casual.
-- **Health**: Time-sensitive, especially for reminders.
-- **Promotions**: Low priority unless user engages often (high clicks/low dismisses).
+- *Work / Finance / System*: Send early (morning/daytime). High priority means high urgency.
+- *Social / News / Entertainment*: Send in the evening or break times. Low/medium priority = casual.
+- *Health*: Time-sensitive, especially for reminders.
+- *Promotions*: Low priority unless user engages often (high clicks/low dismisses).
 
 ## Priority Rules:
-- **High Priority**: Must be seen quickly. Use shorter intervals and earlier start times.
-- **Medium Priority**: Balanced exposure during active hours.
-- **Low Priority**: Send during non-critical hours, with minimal frequency.
+- *High Priority*: Must be seen quickly. Use shorter intervals and earlier start times.
+- *Medium Priority*: Balanced exposure during active hours.
+- *Low Priority*: Send during non-critical hours, with minimal frequency.
 
-## Output Instructions:
-Respond strictly in this JSON format:
+## Instructions:
+1. Base all times on the provided creation datetime ({creation_datetime}).
+2. Ensure startdatetime is same day or later, and enddatetime is after that.
+3. Respond strictly in this JSON format:
 {{
   "startdatetime": "YYYY-MM-DD HH:MM",
   "enddatetime": "YYYY-MM-DD HH:MM",
-  "frequency": integer  # based on all factors above
+  "frequency": integer
 }}
-
-Your response should reflect logical variation based on both category and user behavior.
 """
     return prompt
 
 # scheduler function
 def get_schedule(prompt):
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash",
         contents=prompt
     )
-    return response.text
+    text = response.text
+    # Step 1: Strip Markdown-style code block wrapper (```json ... ```)
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if not match:
+        raise ValueError("No valid JSON code block found")
+
+    json_str = match.group(1)
+
+    # Step 2: Parse cleaned JSON string
+    return json.loads(json_str)
+
 
 # Input Form
 def get_user_input():
@@ -94,16 +106,16 @@ def get_user_input():
     return category, priority, avg_reaction_time, click_count, dismiss_count
 
 # Main loop
-if __name__ == "__main__":
-    while True:
-        user_data = get_user_input()
-        if user_data is None:
-            print("Exiting scheduler.")
-            break
+# if __name__ == "__main__":
+#     while True:
+#         user_data = get_user_input()
+#         if user_data is None:
+#             print("Exiting scheduler.")
+#             break
 
-        cat, pri, art, cc, dc = user_data
-        prompt = generate_prompt(cat, pri, art, cc, dc)
-        result = get_schedule(prompt)
+#         cat, pri, art, cc, dc = user_data
+#         prompt = generate_prompt(cat, pri, art, cc, dc)
+#         result = get_schedule(prompt)
 
-        print("\nSuggested Notification Schedule:")
-        print(result)
+#         print("\nSuggested Notification Schedule:")
+#         print(result)

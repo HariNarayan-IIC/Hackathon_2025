@@ -6,8 +6,22 @@ from typing import List
 from dummy_data import dummy_notifications
 from datetime import datetime
 from NotificationClassifier import classify_notification
+from NotificationScheduler import generate_prompt, get_schedule
+from CronJobScheduler import start_scheduler
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup actions
+    start_scheduler()
+    yield
+    # Shutdown actions (optional)
+    # stop_scheduler()
+app = FastAPI(lifespan=lifespan)
+
+
+
 
 @app.post("/users/")
 async def create_user(user: UserModel):
@@ -35,8 +49,36 @@ async def create_notification(notification: NotificationModel):
     print(notification)
     #Classify and Summarize
     classificationResult = classify_notification(notification["title"], notification["content"], notification["source"])
-    
-    #
+
+    #Schedule notification
+    userBehaviourResult = await db.user_behaviours.find_one({
+        "user_id": notification["user_id"], 
+        "notification_category": classificationResult["category"], 
+        "notification_priority": classificationResult["priority"]})
+    if (not userBehaviourResult):
+        userBehaviourResult = {
+            "average_reaction_time": None, 
+            "clickedCount": None, 
+            "dismissedCount": None}
+    prompt = generate_prompt(category= classificationResult["category"], priority= classificationResult["priority"], avg_reaction_time= userBehaviourResult["average_reaction_time"], click_count= userBehaviourResult["clickedCount"], dismiss_count= userBehaviourResult["dismissedCount"], creation_datetime=notification["created_at"] )
+    scheduleResult = get_schedule(prompt)
+
+    # Update notification document in MongoDB
+    await db.notifications.update_one(
+        {"_id": result.inserted_id},
+        {
+            "$set": {
+                "category": classificationResult["category"],
+                "priority": classificationResult["priority"],
+                "summary": classificationResult["summary"],
+                "scheduled_for_begin": scheduleResult["startdatetime"],
+                "scheduled_for_end": scheduleResult["enddatetime"],
+                "frequency": scheduleResult["frequency"]
+            }
+        }
+    )
+
+
     return {"id": str(result.inserted_id)}
 
 @app.get("/notifications/")
