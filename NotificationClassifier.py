@@ -19,8 +19,8 @@ def classify_notification(title, content, source):
 You are a smart notification classifier.
 
 Given the title, content, and source of a notification, return a JSON with:
-- category: Work, Social, Finance, Promotions, System, Health, News, Entertainment
-- priority: High, Medium, Low
+- category: Work, Social, Finance, Promotions, System, Health, News, Entertainment, Hazard
+- priority: High, Medium, Low, Urgent
 - summary: a brief four-word summary of the notification's content
 
 Respond ONLY in this JSON format:
