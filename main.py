@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from bson import ObjectId
 from db import db
 from models import UserModel, DeviceModel, NotificationModel
@@ -9,6 +9,28 @@ from NotificationClassifier import classify_notification
 from NotificationScheduler import generate_prompt, get_schedule
 from CronJobScheduler import start_scheduler
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+from pywebpush import webpush, WebPushException
+import os
+from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
+VAPID_PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+VAPID_PUBLIC_KEY= os.getenv("PUBLIC_KEY")
+VAPID_CLAIMS = {
+    "sub": "mailto:rhari.narayan@iic.ac.in"
+}
+
+def send_notification(subscription_info, data):
+    try:
+        webpush(
+            subscription_info=subscription_info,
+            data=data,
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims=VAPID_CLAIMS
+        )
+    except WebPushException as ex:
+        print("Web push failed:", repr(ex))
 
 
 @asynccontextmanager
@@ -20,8 +42,15 @@ async def lifespan(app: FastAPI):
     # stop_scheduler()
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080"],  # your frontend origin
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-
+subscriptions = []
 
 @app.post("/users/")
 async def create_user(user: UserModel):
@@ -40,6 +69,19 @@ async def get_user(user_id: str):
 async def register_device(device: DeviceModel):
     result = await db.devices.insert_one(device.dict())
     return {"id": str(result.inserted_id)}
+
+
+@app.post("/api/subscribe")
+async def subscribe(request: Request):
+    data = await request.json()
+    subscriptions.append(data)  # In production, store in DB
+    return {"status": "subscribed"}
+
+@app.post("/api/notify")
+def notify_all():
+    for sub in subscriptions:
+        send_notification(sub, '{"title":"Hello!", "body":"This is a test notification"}')
+    return {"status": "sent"}
 
 @app.post("/notifications/")
 async def create_notification(notification: NotificationModel):

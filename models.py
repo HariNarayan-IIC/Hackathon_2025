@@ -22,6 +22,12 @@ class Category (str, Enum):
     entertainment= "Entertainment"
     hazard= "Hazard"
 
+class Status(str, Enum):
+    pending= "Pending"
+    deliverd= "Delivered"
+    clicked= "Clicked"
+    dismissed= "Dismissed"
+
 class NotificationModel(BaseModel):
     user_id: str
     source: str
@@ -34,9 +40,8 @@ class NotificationModel(BaseModel):
     scheduled_for_begin: Optional[datetime] = None
     scheduled_for_end: Optional[datetime] = None
     frequency: Optional[int] = None
+    status: Status= Status.pending
     delivered_at: list[Optional[datetime]] = []
-    
-
 
 class UserModel(BaseModel):
     name: str
