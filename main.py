@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from pywebpush import webpush, WebPushException
 import os
+import json
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
@@ -88,9 +89,33 @@ async def create_notification(notification: NotificationModel):
     print("In here")
     result = await db.notifications.insert_one(notification.dict())
     notification = await db.notifications.find_one(result.inserted_id)
-    print(notification)
     #Classify and Summarize
     classificationResult = classify_notification(notification["title"], notification["content"], notification["source"])
+
+    if classificationResult["category"] == "Hazard" or classificationResult["priority"] == "Urgent":
+        # Update notification with classification and summary but no scheduling
+        await db.notifications.update_one(
+            {"_id": result.inserted_id},
+            {
+                "$set": {
+                    "category": classificationResult["category"],
+                    "priority": classificationResult["priority"],
+                    "summary": classificationResult["summary"],
+                    "scheduled_for_begin": None,
+                    "scheduled_for_end": None,
+                    "frequency": None,
+                    "status": "Sent"  # Optionally mark as sent
+                }
+            }
+        )
+        for sub in subscriptions:
+            payload = {
+                "title": notification["title"],
+                "body": classificationResult["summary"]  # summary is better for body
+            }
+            send_notification(sub, json.dumps(payload))
+
+        return {"id": str(result.inserted_id), "message": "Notification sent immediately due to Hazard/Urgent classification."}
 
     #Schedule notification
     userBehaviourResult = await db.user_behaviours.find_one({
@@ -123,12 +148,19 @@ async def create_notification(notification: NotificationModel):
 
     return {"id": str(result.inserted_id)}
 
+
 @app.get("/notifications/")
 async def get_notifications():
-    notifications = await list(db.notifications.find())
+    # Filter out notifications with status "Clicked" or "Dismissed"
+    query = {"status": {"$nin": ["Clicked", "Dismissed"]}}
+    notifications = await db.notifications.find(query).to_list(length=None)
+    
+    # Convert ObjectId to string for JSON serialization
     for notif in notifications:
         notif["_id"] = str(notif["_id"])
+    
     return notifications
+
 
 @app.get("/notifications/{notif_id}")
 async def get_notification(notif_id: str):
